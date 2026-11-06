@@ -16,7 +16,7 @@ int main() {
         raw_measurement = adc_read();
         volts = raw_measurement * 3.3 / 4096.0;
         temp = 27 - (volts - 0.706) / 0.001721;
-        printf("Temperature is: %.2f Cº| Volts: %.4f\n", temp, volts);
+        printf("Temperature is: %.2f C°| Volts: %.4f\n", temp, volts);
         sleep_ms(1000);
     }
 }
