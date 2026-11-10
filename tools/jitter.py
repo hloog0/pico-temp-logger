@@ -5,7 +5,7 @@ import collections
 ser = serial.Serial('/dev/tty.usbmodem21301', timeout = 2)
 timestamps = []
 gaps = []
-n_gaps = 5
+n_gaps = 100
 unusual_gap_positions = []
 EXPECTED_US = 1000000
 
