@@ -144,7 +144,7 @@ bool ds18b20_read_scratchpad(uint pin, uint8_t *scratch) {
     }
 }
 
-float ds18b20_raw_to_celcius(const uint8_t *scratch) {
+float ds18b20_raw_to_celsius(const uint8_t *scratch) {
     int16_t raw = (scratch[1] << 8) | scratch[0];
     return raw / 16.0f;
 }
@@ -210,7 +210,7 @@ int main() {
                             printf("conversion did NOT happen\n");
                         } else {
                             printf("conversion happened\n");
-                            printf("%.4f °C\n", ds18b20_raw_to_celcius(scratch));
+                            printf("%.4f °C\n", ds18b20_raw_to_celsius(scratch));
                         }
                     } else {
                         printf("scratchpad CRC FAIL or no device\n");
