@@ -92,12 +92,70 @@ uint8_t onewire_crc8(const uint8_t *data, int len) {
     return crc;
 }
 
+bool ds18b20_start_conversion(uint pin) {
+    if (!onewire_reset(pin)) {
+        return false;
+    }
+
+    onewire_write_byte(pin, 0xCC);
+    onewire_write_byte(pin, 0x44);
+
+    return true;
+}
+
+uint32_t ds18b20_wait_conversion(uint pin) {
+    uint64_t start_time = time_us_64();
+    uint64_t elapsed_time = 0;
+    while (onewire_read_bit(pin) != 1) {
+        elapsed_time = time_us_64() - start_time;
+        if (elapsed_time >= 1000000) {
+            return UINT32_MAX;
+        }
+    }
+
+    return elapsed_time;
+}
+
+bool ds18b20_is_ext_powered(uint pin) {
+    if (!onewire_reset(pin)) {
+        return false;
+    }
+
+    onewire_write_byte(pin, 0xCC);
+    onewire_write_byte(pin, 0xB4);
+
+    return onewire_read_bit(pin);
+}
+
+bool ds18b20_read_scratchpad(uint pin, uint8_t *scratch) {
+    if (!onewire_reset(pin)) {
+        return false;
+    }
+    onewire_write_byte(pin, 0xCC);
+    onewire_write_byte(pin, 0xBE);
+    for (int i = 0; i < 9; i++) {
+        scratch[i] = onewire_read_byte(pin);
+    }
+
+    if (onewire_crc8(scratch, 9) == 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+float ds18b20_raw_to_celcius(const uint8_t *scratch) {
+    int16_t raw = (scratch[1] << 8) | scratch[0];
+    return raw / 16.0f;
+}
+
 int main() {
     static uint16_t raw_measurement;
     float volts, temp;
     repeating_timer_t timer;
     uint64_t t_us;
-    uint8_t rom[8];
+    uint8_t rom[8], scratch[9];
+    uint32_t ds18b20_elapsed_time;
 
     gpio_init(ONEWIRE_PIN);
     gpio_pull_up(ONEWIRE_PIN);
@@ -131,6 +189,45 @@ int main() {
                     printf("CRC OK\n");
                 } else {
                     printf("CRC FAIL\n");
+                }
+
+                if (ds18b20_is_ext_powered(ONEWIRE_PIN)) {
+                    printf("externally powered\n");
+                } else {
+                    printf("parasite powered\n");
+                }
+
+                if (ds18b20_start_conversion(ONEWIRE_PIN)) {
+                    sleep_ms(750);
+                    if (ds18b20_read_scratchpad(ONEWIRE_PIN, scratch)) {
+                        for (int i = 0; i < 9; i++) {
+                            printf("%02X ", scratch[i]);
+                        }
+
+                        printf("\n");
+
+                        if (scratch[0] == 0x50 && scratch[1] == 0x05) {
+                            printf("conversion did NOT happen\n");
+                        } else {
+                            printf("conversion happened\n");
+                            printf("%.4f °C\n", ds18b20_raw_to_celcius(scratch));
+                        }
+                    } else {
+                        printf("scratchpad CRC FAIL or no device\n");
+                    }
+                    
+                    /* 
+                    ds18b20_elapsed_time = ds18b20_wait_conversion(ONEWIRE_PIN);
+                    if (ds18b20_elapsed_time == UINT32_MAX) {
+                        printf("conversion timed out\n");
+                    } else {
+                    
+                        printf("%.1f ms\n", ds18b20_elapsed_time / 1000.0f);
+                    }
+                    */
+
+                } else {
+                    printf("no device\n");
                 }
             }
 

@@ -48,3 +48,13 @@ One dated entry per session: what I did, time spent, what broke, the fix.
 - Second block started 6:46 pm.
 - Prediction before CRC check: probe 1 ROM passes; forcing a changed ROM byte should make it fail.
 - Wrote `onewire_crc8()` (Dallas/Maxim CRC-8, reflected polynomial 0x8C, LSB first). Probe 1 ROM: CRC OK every read. Negative test: flipped one bit (`rom[3] ^= 0x01`) → CRC FAIL; flip removed. Prediction confirmed.
+- Prediction before measuring conversion time: default 12-bit, datasheet max 750 ms; expect 500–700 ms.
+- Conversion-time poll returned 0.0 ms every time (first read slot already 1) vs predicted 500–700 ms. Debugging: hypotheses = parasite power (VCC not reaching probe), clone chip without busy-polling, or conversion not starting. Adapter VCC–GND measured 3.284 V while powered.
+- Prediction before Read Power Supply [B4h]: externally powered.
+- Read Power Supply [B4h]: externally powered (prediction confirmed). Rules out parasite power as the cause of the 0.0 ms poll. Remaining: clone without busy-polling, or conversion not starting.
+- Prediction before fixed-wait scratchpad read: bytes 0–1 = 50 05 (85.0 °C power-on default), i.e. conversion never happened.
+- Fixed 750 ms wait then Read Scratchpad [BEh], probe 1: `75 01 7F 80 7F FF 0B 10 F7`, CRC OK. Bytes 0–1 ≠ 50 05, so the conversion DID happen (prediction wrong). Config byte = 0x7F (12-bit). Conclusion: this probe does not signal "busy" with 0 read slots during conversion, so polling can't measure conversion time. Genuine vs clone not determined from these bytes alone. Decision: fixed 750 ms (datasheet max) wait.
+- Broke along the way: compared `scratch[0] == 50` (decimal) instead of `0x50`; called `ds18b20_is_ext_powered` without `()` (always true).
+- Decoded by hand: bytes 0–1 `75 01` → 0x0175 = 373 counts; 12-bit resolution = 1/16 °C per count (fixed-point, 4 fractional bits) → 373 / 16 = 23.3125 °C. Prediction ("between the desk clock ~22 °C and the built-in sensor ~28.5 °C") correct; much closer to the desk clock.
+- Wrote `ds18b20_raw_to_celsius()` (int16_t from bytes 1:0, / 16.0f). Live readings: 22.1875 °C (0x0163), 22.2500 °C (0x0164) — 0.0625 °C steps, scratchpad CRC OK, ROM CRC OK each tick. Probe 1 end-to-end on own driver: done.
+- Time, second block: ~2 h (6:46–8:40 pm). Day total ~5 h 40 min.
