@@ -33,3 +33,12 @@ One dated entry per session: what I did, time spent, what broke, the fix.
 - Prediction vs result: predicted ~270/300 exact and 3–10 µs late samples; got 299/300 and a single 5 µs startup offset.
 - Broke: `while len(timestamps) <= 11` collected 12 timestamps (11 gaps, not 10). Fix: name the count `n_gaps` and print `len(gaps)`.
 - Time: ~2 h 15 min.
+
+## 2026-11-15
+
+- Read DS18B20 datasheet pp. 10–16 (1-Wire signaling, transaction sequence, ROM and function commands).
+- Prediction before writing the driver: bit timing will be the hardest and most finicky part; the function commands will be the most straightforward.
+- Wired probe 1: probe → DROK adapter screw terminal (yellow DAT, red VCC, black GND; adapter has 4.7 kΩ pull-up) → jumpers to Pico: orange VCC → 3V3 (pin 36), green GND → GND (pin 38), yellow DAT → GP2 (pin 4). Caught GND jumper on VSYS/VBUS in photo check before power-up; continuity 3V3–GND checked.
+- Wrote `onewire_reset()`: drive low 480 µs (output, value 0), release (input), sample at 70 µs (inside the guaranteed-low 60–75 µs presence window), wait 410 µs. Returns `!line_high`.
+- Tests passed: probe connected → presence detected; jumper off GP2 → no device; probe data wire unscrewed → no device.
+- Broke: used `gpio_pull_down/up` (weak ~50 kΩ internal pulls, lose to the 4.7 kΩ) instead of switching direction; used physical pin 4 instead of GPIO 2; return value inverted (low = present). Floating pin read low via default pull-down → added `gpio_pull_up` as backup.
