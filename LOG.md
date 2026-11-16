@@ -44,3 +44,7 @@ One dated entry per session: what I did, time spent, what broke, the fix.
 - Broke: used `gpio_pull_down/up` (weak ~50 kΩ internal pulls, lose to the 4.7 kΩ) instead of switching direction; used physical pin 4 instead of GPIO 2; return value inverted (low = present). Floating pin read low via default pull-down → added `gpio_pull_up` as backup.
 - Prediction before first Read ROM [33h] run: rom[0] = 0x33 (echo of the command); line identical every second; bit timing errors would show as nonsense bytes.
 - Read ROM [33h] result, probe 1: `28 12 93 D5 00 00 00 52`. rom[0] = 0x28 = DS18B20 family code, not an echo of 0x33 (prediction wrong: writing sends a command; the probe answers with its own ID). CRC byte (0x52) not yet verified.
+- Time, first block: ~3 h 40 min (1:39–5:19 pm). Break for dinner; next: CRC-8 check (step 6) and probe 2 Read ROM.
+- Second block started 6:46 pm.
+- Prediction before CRC check: probe 1 ROM passes; forcing a changed ROM byte should make it fail.
+- Wrote `onewire_crc8()` (Dallas/Maxim CRC-8, reflected polynomial 0x8C, LSB first). Probe 1 ROM: CRC OK every read. Negative test: flipped one bit (`rom[3] ^= 0x01`) → CRC FAIL; flip removed. Prediction confirmed.

@@ -76,6 +76,22 @@ uint8_t onewire_read_byte(uint pin) {
     return result;
 }
 
+uint8_t onewire_crc8(const uint8_t *data, int len) {
+    uint8_t crc = 0;
+    uint8_t mix;
+    for (int i = 0; i < len; i++) {
+        for (int j = 0; j < 8; j++) {
+            mix = (crc & 1) ^ ((data[i] >> j) & 1);
+            crc >>= 1;
+            if (mix == 1) {
+                crc ^= 0x8C;
+            }
+        }
+    }
+
+    return crc;
+}
+
 int main() {
     static uint16_t raw_measurement;
     float volts, temp;
@@ -110,6 +126,12 @@ int main() {
                     printf("%02X ", rom[i]);
                 }
                 printf("\n");
+                
+                if (onewire_crc8(rom, 7) == rom[7]) {
+                    printf("CRC OK\n");
+                } else {
+                    printf("CRC FAIL\n");
+                }
             }
 
             /* 
