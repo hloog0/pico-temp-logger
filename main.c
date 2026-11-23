@@ -166,7 +166,7 @@ int main() {
     uint8_t scratch[9];
     uint32_t ds18b20_elapsed_time;
 
-    float temp_c[2];
+    float temp_c[2], temp_f[2];
     bool ok[2];
 
     gpio_init(ONEWIRE_PIN);
@@ -207,14 +207,15 @@ int main() {
 
                             printf("\nProbe %d: ", p + 1);
 
-                            if (scratch[0] == 0x50 && scratch[1] == 0x05) {
+                            if (scratch[0] == 0x50 && scratch[1] == 0x05) { // read default temperature 85 C which means nothing happened
                                 ok[p] = false;
                                 printf("Conversion did NOT happen\n");
                             } else {
                                 printf("Conversion happened: ");
                                 temp_c[p] = ds18b20_raw_to_celsius(scratch);
-                                printf("Temperature: [%.4f °C]\n", temp_c[p]);
-                                printf("------------------------------------------------\n");
+                                temp_f[p] = (temp_c[p] * 9.0f/5.0f) + 32.0f;
+                                printf("Temperature: [%.4f °C] | [%.4f °F]\n", temp_c[p], temp_f[p]);
+                                printf("-------------------------------------------------------------------------\n");
                             }
                         } else {
                             ok[p] = false;
