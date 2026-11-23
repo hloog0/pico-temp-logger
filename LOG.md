@@ -79,3 +79,4 @@ One dated entry per session: what I did, time spent, what broke, the fix.
 - Decision point (two-probe CRC-checked reads, planned Nov 21, met Nov 22): keep own driver, no library.
 - Not done tonight: built-in sensor in the same tick; interrupt protection for reset's release→sample (70 µs sample vs 75 µs window edge).
 - Time: ~1 h 45 min (8:27–10:13 pm).
+- Open question (10:17 pm): food probe read 21.6 °C, desk clock 69.6 °F ≈ 20.9 °C (both fluctuating), vs DS18B20s 18.6 °C at 10:11 pm — a 2–3 °C gap, beyond ±0.5 °C. Not co-located, so not yet a fair comparison. Hypotheses: (1) probe location (desk surface/window/vent), (2) references inaccurate (±1–2 °C typical, single readings), (3) shared DS18B20 offset. Self-heating ruled out by direction (would read high, not low). Next: co-locate food probe with taped DS18B20 tips in open air, 5 min hands-off, average 5 readings.
