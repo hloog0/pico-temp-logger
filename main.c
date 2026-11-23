@@ -5,6 +5,8 @@
 #include <inttypes.h>
 
 #define ONEWIRE_PIN 2
+const uint8_t probe_rom[2][8] = {{0x28, 0x12, 0x93, 0xD5, 0x00, 0x00, 0x00, 0x52},
+                                 {0x28, 0x72, 0xC0, 0xD3, 0x00, 0x00, 0x00, 0x43}};
 
 volatile bool perform_sample = false;
 
@@ -127,11 +129,18 @@ bool ds18b20_is_ext_powered(uint pin) {
     return onewire_read_bit(pin);
 }
 
-bool ds18b20_read_scratchpad(uint pin, uint8_t *scratch) {
+void onewire_match_rom(uint pin, const uint8_t *rom) {
+    onewire_write_byte(pin, 0x55);
+    for (int i = 0; i < 8; i++) {
+        onewire_write_byte(pin, rom[i]);
+    }
+}
+
+bool ds18b20_read_scratchpad(uint pin, const uint8_t *rom, uint8_t *scratch) {
     if (!onewire_reset(pin)) {
         return false;
     }
-    onewire_write_byte(pin, 0xCC);
+    onewire_match_rom(pin, rom);
     onewire_write_byte(pin, 0xBE);
     for (int i = 0; i < 9; i++) {
         scratch[i] = onewire_read_byte(pin);
@@ -154,8 +163,11 @@ int main() {
     float volts, temp;
     repeating_timer_t timer;
     uint64_t t_us;
-    uint8_t rom[8], scratch[9];
+    uint8_t scratch[9];
     uint32_t ds18b20_elapsed_time;
+
+    float temp_c[2];
+    bool ok[2];
 
     gpio_init(ONEWIRE_PIN);
     gpio_pull_up(ONEWIRE_PIN);
@@ -174,46 +186,44 @@ int main() {
         if (perform_sample) {
             perform_sample = false;
             if (!onewire_reset(ONEWIRE_PIN)) {
-                printf("!! no device !!\n");
+                printf("!! No device !!\n");
             } else {
-                onewire_write_byte(ONEWIRE_PIN, 0x33);
-                for (int i = 0; i < 8; i++) {
-                    rom[i] = onewire_read_byte(ONEWIRE_PIN);
-                }
-                for (int i = 0; i < 8; i++) {
-                    printf("%02X ", rom[i]);
-                }
-                printf("\n");
-                
-                if (onewire_crc8(rom, 7) == rom[7]) {
-                    printf("CRC OK\n");
-                } else {
-                    printf("CRC FAIL\n");
-                }
 
                 if (ds18b20_is_ext_powered(ONEWIRE_PIN)) {
-                    printf("externally powered\n");
+                    printf("Externally powered\n");
                 } else {
-                    printf("parasite powered\n");
+                    printf("Parasite powered\n");
                 }
 
                 if (ds18b20_start_conversion(ONEWIRE_PIN)) {
                     sleep_ms(750);
-                    if (ds18b20_read_scratchpad(ONEWIRE_PIN, scratch)) {
-                        for (int i = 0; i < 9; i++) {
-                            printf("%02X ", scratch[i]);
-                        }
+                    for (int p = 0; p < 2; p++) {
+                        if (ds18b20_read_scratchpad(ONEWIRE_PIN, probe_rom[p], scratch)) {
+                            ok[p] = true;
+                            printf("Probe %d: Scratchpad: ", p + 1);
+                            for (int i = 0; i < 9; i++) {
+                                printf("%02X ", scratch[i]);
+                            }
 
-                        printf("\n");
+                            printf("\nProbe %d: ", p + 1);
 
-                        if (scratch[0] == 0x50 && scratch[1] == 0x05) {
-                            printf("conversion did NOT happen\n");
+                            if (scratch[0] == 0x50 && scratch[1] == 0x05) {
+                                ok[p] = false;
+                                printf("Conversion did NOT happen\n");
+                            } else {
+                                printf("Conversion happened: ");
+                                temp_c[p] = ds18b20_raw_to_celsius(scratch);
+                                printf("Temperature: [%.4f °C]\n", temp_c[p]);
+                                printf("------------------------------------------------\n");
+                            }
                         } else {
-                            printf("conversion happened\n");
-                            printf("%.4f °C\n", ds18b20_raw_to_celsius(scratch));
+                            ok[p] = false;
+                            printf("Probe %d: Scratchpad CRC FAIL or no device\n", p + 1);
                         }
-                    } else {
-                        printf("scratchpad CRC FAIL or no device\n");
+                    }
+
+                    if (ok[0] && ok[1]) {
+                        printf("Difference in readings: %.4f °C\n", temp_c[0] - temp_c[1]);
                     }
                     
                     /* 
@@ -227,7 +237,7 @@ int main() {
                     */
 
                 } else {
-                    printf("no device\n");
+                    printf("No device\n");
                 }
             }
 
