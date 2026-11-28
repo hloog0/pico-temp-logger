@@ -50,9 +50,11 @@ bool onewire_reset(uint pin) {
     bool line_high;
     gpio_set_dir(pin, GPIO_OUT);
     busy_wait_us(480);
+    uint32_t irq = save_and_disable_interrupts();
     gpio_set_dir(pin, GPIO_IN);
     busy_wait_us(70);
     line_high = gpio_get(pin); // gpio_get() returns 0 if low
+    restore_interrupts(irq);
     busy_wait_us(410);
     return !line_high; // the probe is present (1) if low (0)
 }
@@ -164,7 +166,7 @@ int main() {
     repeating_timer_t timer;
     uint64_t t_us;
     uint8_t scratch[9];
-    uint32_t ds18b20_elapsed_time;
+    uint32_t ds18b20_elapsed_time, seq = 0;
 
     float temp_c[2], temp_f[2];
     bool ok[2];
@@ -180,52 +182,51 @@ int main() {
 
     // timer
     add_repeating_timer_ms(-1000, timer_callback, NULL, &timer);
+    
+    // power check
+    if (ds18b20_is_ext_powered(ONEWIRE_PIN)) {
+        printf("Externally powered\n");
+    } else {
+        printf("Parasite powered\n");
+    }
 
     // sample loop
     while (true) {
         if (perform_sample) {
             perform_sample = false;
+            t_us = time_us_64();
+
             if (!onewire_reset(ONEWIRE_PIN)) {
-                printf("!! No device !!\n");
+                printf("%" PRIu32 ",%" PRIu64",,0,,0\n", seq, t_us);
             } else {
-
-                if (ds18b20_is_ext_powered(ONEWIRE_PIN)) {
-                    printf("Externally powered\n");
-                } else {
-                    printf("Parasite powered\n");
-                }
-
                 if (ds18b20_start_conversion(ONEWIRE_PIN)) {
                     sleep_ms(750);
+
                     for (int p = 0; p < 2; p++) {
                         if (ds18b20_read_scratchpad(ONEWIRE_PIN, probe_rom[p], scratch)) {
                             ok[p] = true;
-                            printf("Probe %d: Scratchpad: ", p + 1);
-                            for (int i = 0; i < 9; i++) {
-                                printf("%02X ", scratch[i]);
-                            }
-
-                            printf("\nProbe %d: ", p + 1);
 
                             if (scratch[0] == 0x50 && scratch[1] == 0x05) { // read default temperature 85 C which means nothing happened
                                 ok[p] = false;
-                                printf("Conversion did NOT happen\n");
                             } else {
-                                printf("Conversion happened: ");
                                 temp_c[p] = ds18b20_raw_to_celsius(scratch);
-                                temp_f[p] = (temp_c[p] * 9.0f/5.0f) + 32.0f;
-                                printf("Temperature: [%.4f °C] | [%.4f °F]\n", temp_c[p], temp_f[p]);
-                                printf("-------------------------------------------------------------------------\n");
                             }
                         } else {
                             ok[p] = false;
-                            printf("Probe %d: Scratchpad CRC FAIL or no device\n", p + 1);
                         }
                     }
+                    
 
-                    if (ok[0] && ok[1]) {
-                        printf("Difference in readings: %.4f °C\n", temp_c[0] - temp_c[1]);
+                    printf("%" PRIu32 ",%" PRIu64"", seq, t_us);
+
+                    for (int p = 0; p < 2; p++) {
+                        if (ok[p]) {
+                            printf(",%.4f,1", temp_c[p]);
+                        } else {
+                            printf(",,0");
+                        }
                     }
+                    printf("\n");
                     
                     /* 
                     ds18b20_elapsed_time = ds18b20_wait_conversion(ONEWIRE_PIN);
@@ -238,7 +239,7 @@ int main() {
                     */
 
                 } else {
-                    printf("No device\n");
+                    printf("%" PRIu32 ",%" PRIu64",,0,,0\n", seq, t_us);
                 }
             }
 
@@ -250,6 +251,7 @@ int main() {
             printf("%" PRIu64 ",%.2f,%.4f\n", t_us, temp, volts); 
             */
             // printf("Temperature is: %.2f C°| Volts: %.4f\n", temp, volts);
+            seq++;
         }
     }
 }
